@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # Cơ sở dữ liệu MariaDB
+  mariadb:
+    image: mariadb:latest
+    container_name: my-mariadb
+    restart: unless-stopped
+    environment:
+      # !!! THAY ĐỔI MẬT KHẨU NÀY !!!
+      MARIADB_ROOT_PASSWORD: 123456 
+      MARIADB_DATABASE: docker
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+  # Giao diện quản lý CSDL
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: my-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: mariadb # Trỏ đến tên service của mariadb
+    depends_on:
+      - mariadb
+
+  # Nền tảng Node-RED
+  node-red:
+    image: nodered/node-red:latest
+    container_name: my-nodered
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    volumes:
+    - ./nodered-data:/data
+  # Cơ sở dữ liệu Time-series InfluxDB
+  influxdb:
+    image: influxdb:latest # Bạn có thể chỉ định phiên bản cụ thể, ví dụ: influxdb:2.7
+    container_name: my-influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+
+  # Giao diện trực quan hóa Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: my-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - influxdb
+
+  # Máy chủ web Nginx
+  nginx:
+    image: nginx:latest
+    container_name: my-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"     # Cổng HTTP
+      - "443:443"   # Cổng HTTPS
+    volumes:
+      # Bạn cần tạo thư mục ./nginx/conf.d và đặt file config .conf vào đó
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      # Bạn cần tạo thư mục ./nginx/html để chứa web
+      - ./nginx/html:/usr/share/nginx/html 
+
+# Định nghĩa các "named volumes" để lưu trữ dữ liệu
+# Dữ liệu sẽ không bị mất ngay cả khi bạn xóa container
+volumes:
+  mariadb-data:
+  #nodered-data:
+  influxdb-data:
+  influxdb-config:
+  grafana-data:

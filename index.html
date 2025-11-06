@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Giám Sát IOT</title>
+
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --dark-bg: #1a1a1a;
+            --light-bg: #2c2c2c;
+            --text-color: #f0f0f0;
+            --border-color: #444;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --warning-color: #ffc107; /* Màu đèn BẬT */
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--dark-bg);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* Ẩn các View (trang) */
+        .view {
+            display: none;
+            width: 100%;
+            max-width: 1200px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        /* Form đăng nhập/đăng ký */
+        .auth-container {
+            width: 100%;
+            max-width: 400px;
+            margin: 50px auto;
+            background-color: var(--light-bg);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .auth-container h2 { text-align: center; margin-top: 0; }
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+        .form-group input {
+            width: 100%; padding: 0.75rem; box-sizing: border-box;
+            background-color: var(--dark-bg); border: 1px solid var(--border-color);
+            color: var(--text-color); border-radius: 4px; font-size: 1rem;
+        }
+        .btn {
+            width: 100%; padding: 0.75rem; border: none; border-radius: 4px;
+            background-color: var(--primary-color); color: white;
+            font-size: 1rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s ease;
+        }
+        .btn:hover { background-color: #0056b3; }
+        .toggle-link { text-align: center; margin-top: 1rem; }
+        .toggle-link a { color: var(--primary-color); text-decoration: none; cursor: pointer; }
+        .error-message {
+            color: var(--error-color); text-align: center;
+            margin-bottom: 1rem; display: none;
+        }
+
+        /* Trang chủ (Dashboard) */
+        #dashboardView header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+        }
+        #dashboardView h1 { margin: 0; }
+        #logoutButton {
+            background-color: var(--error-color); color: white;
+            padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer;
+        }
+
+        /* Tab chọn phòng */
+        .room-tabs {
+            display: flex;
+            margin-top: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tab-button {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 1.1rem;
+            border-bottom: 3px solid transparent;
+        }
+        .tab-button.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        /* Nội dung phòng */
+        .room-content {
+            display: none; /* Ẩn tất cả */
+            padding-top: 1.5rem;
+        }
+        .room-content.active {
+            display: block; /* Chỉ hiện phòng được chọn */
+        }
+
+        #sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .sensor-card {
+            background-color: var(--light-bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: transform 0.2s ease, background-color 0.3s ease;
+            border-left: 5px solid var(--primary-color);
+        }
+        .sensor-card:hover { transform: translateY(-5px); }
+        .sensor-card h3 { margin: 0 0 0.5rem 0; color: var(--text-color); }
+        .sensor-card .value { font-size: 2.5rem; font-weight: 700; color: var(--text-color); }
+        .sensor-card .unit { font-size: 1.5rem; color: #aaa; margin-left: 5px; }
+        .sensor-card .timestamp { font-size: 0.8rem; color: #888; margin-top: 1rem; }
+
+        /* CSS đặc biệt cho đèn (sensor_type == 'den') */
+        .sensor-card.light {
+            border-left-color: #888;
+        }
+        .sensor-card.light.ON {
+            background-color: #3d3b2a;
+            border-left-color: var(--warning-color);
+        }
+        .sensor-card.light.ON .value {
+            color: var(--warning-color);
+        }
+
+        /* Modal hiển thị Grafana */
+        .modal {
+            display: none; position: fixed; z-index: 1000;
+            left: 0; top: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background-color: var(--light-bg); padding: 20px;
+            border: 1px solid var(--border-color);
+            width: 80%; height: 80%; border-radius: 8px; position: relative;
+        }
+        .close-modal {
+            color: #aaa; position: absolute; top: 10px; right: 25px;
+            font-size: 35px; font-weight: bold; cursor: pointer;
+        }
+        .modal-content iframe {
+            width: 100%; height: calc(100% - 20px);
+            border: none; margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loginView" class="view">
+        <div class="auth-container">
+            <h2>Đăng nhập</h2>
+            <form id="loginForm">
+                <p id="loginError" class="error-message"></p>
+                <div class="form-group">
+                    <label for="loginUsername">Tên đăng nhập</label>
+                    <input type="text" id="loginUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Mật khẩu</label>
+                    <input type="password" id="loginPassword" required>
+                </div>
+                <button type="submit" class="btn">Đăng nhập</button>
+            </form>
+            <div class="toggle-link">
+                Chưa có tài khoản? <a id="showRegisterLink">Đăng ký ngay</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="registerView" class="view">
+        <div class="auth-container">
+            <h2>Đăng ký</h2>
+            <form id="registerForm">
+                <p id="registerError" class="error-message"></p>
+                <div class="form-group">
+                    <label for="registerUsername">Tên đăng nhập</label>
+                    <input type="text" id="registerUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerPassword">Mật khẩu</label>
+                    <input type="password" id="registerPassword" required>
+                </div>
+                <button type="submit" class="btn">Đăng ký</button>
+            </form>
+            <div class="toggle-link">
+                Đã có tài khoản? <a id="showLoginLink">Đăng nhập</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboardView" class="view">
+        <header>
+            <h1>Trang Giám Sát IOT</h1>
+            <button id="logoutButton">Đăng xuất</button>
+        </header>
+
+        <div class="room-tabs" id="roomTabsContainer">
+            </div>
+
+        <div id="roomContentContainer">
+            </div>
+    </div>
+
+    <div id="grafanaModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 id="modalSensorTitle">Lịch sử Cảm biến</h2>
+            <iframe id="grafanaIframe" src="" frameborder="0"></iframe>
+        </div>
+    </div>
+
+
+    <script>
+        const NODE_RED_URL = 'http://localhost:1880';
+        const WEBSOCKET_URL = 'ws://localhost:1880/ws/data';
+        
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- LẤY CÁC PHẦN TỬ (ELEMENTS) ---
+            const loginView = document.getElementById('loginView');
+            const registerView = document.getElementById('registerView');
+            const dashboardView = document.getElementById('dashboardView');
+            const loginForm = document.getElementById('loginForm');
+            const loginUsername = document.getElementById('loginUsername');
+            const loginPassword = document.getElementById('loginPassword');
+            const loginError = document.getElementById('loginError');
+            const registerForm = document.getElementById('registerForm');
+            const registerError = document.getElementById('registerError');
+            const showRegisterLink = document.getElementById('showRegisterLink');
+            const showLoginLink = document.getElementById('showLoginLink');
+            
+            // Dashboard Elements
+            const logoutButton = document.getElementById('logoutButton');
+            const roomTabsContainer = document.getElementById('roomTabsContainer');
+            const roomContentContainer = document.getElementById('roomContentContainer');
+            
+            // Modal Grafana
+            const modal = document.getElementById('grafanaModal');
+            const modalTitle = document.getElementById('modalSensorTitle');
+            const modalIframe = document.getElementById('grafanaIframe');
+            const closeModal = document.querySelector('.close-modal');
+            
+            let sensorSocket = null; // Biến giữ kết nối WebSocket
+
+            // --- HÀM QUẢN LÝ VIỆC CHUYỂN "TRANG" (VIEW) ---
+            
+            function showView(viewToShow) {
+                [loginView, registerView, dashboardView].forEach(view => {
+                    view.classList.remove('active');
+                });
+                viewToShow.classList.add('active');
+            }
+            
+            function showError(element, message) {
+                element.textContent = message;
+                element.style.display = 'block';
+            }
+
+            // --- HÀM XỬ LÝ DASHBOARD ---
+            
+            // 1. Hàm chính: Tải dữ liệu lần đầu VÀ Kết nối WebSocket
+            async function initializeDashboard() {
+                console.log("Đang khởi tạo Dashboard...");
+                try {
+                    // Bước 1: Tải toàn bộ dữ liệu từ API /rooms-data
+                    const response = await fetch(NODE_RED_URL + '/rooms-data'); 
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Bước 2: Dựng giao diện (Tabs và Cards)
+                        renderDashboard(data.rooms);
+                        // Bước 3: Kết nối WebSocket để nhận cập nhật
+                        connectWebSocket(); 
+                    }
+                } catch (err) {
+                    console.error('Lỗi khởi tạo Dashboard:', err);
+                }
+            }
+            
+            // 2. Dựng toàn bộ giao diện (Tabs, Nội dung, Cards) từ dữ liệu
+            function renderDashboard(rooms) {
+                // Xóa tab và nội dung cũ
+                roomTabsContainer.innerHTML = '';
+                roomContentContainer.innerHTML = '';
+                
+                let isFirstRoom = true; // Dùng để active tab đầu tiên
+
+                // Lặp qua các phòng (phong_khach, phong_bep, ...)
+                for (const roomKey in rooms) {
+                    const roomData = rooms[roomKey];
+                    
+                    // Tạo Tab
+                    const tabButton = document.createElement('button');
+                    tabButton.className = 'tab-button';
+                    tabButton.dataset.room = roomKey; // data-room="phong_khach"
+                    tabButton.textContent = roomKey.replace('_', ' '); // "phong_khach" -> "phong khach"
+                    
+                    // Tạo Nội dung cho Tab
+                    const roomDiv = document.createElement('div');
+                    roomDiv.className = 'room-content';
+                    roomDiv.id = `room-${roomKey}`;
+                    
+                    // Tạo Lưới cảm biến bên trong
+                    const gridDiv = document.createElement('div');
+                    gridDiv.id = 'sensor-grid';
+                    
+                    // Lặp qua các cảm biến trong phòng
+                    for (const sensorKey in roomData) {
+                        const sensor = roomData[sensorKey];
+                        // Tạo Card
+                        const card = createSensorCard(roomKey, sensorKey, sensor);
+                        gridDiv.appendChild(card);
+                    }
+                    
+                    roomDiv.appendChild(gridDiv);
+                    
+                    // Active phòng đầu tiên
+                    if (isFirstRoom) {
+                        tabButton.classList.add('active');
+                        roomDiv.classList.add('active');
+                        isFirstRoom = false;
+                    }
+
+                    // Gắn sự kiện click cho Tab
+                    tabButton.addEventListener('click', () => switchRoomTab(roomKey));
+                    
+                    // Thêm vào HTML
+                    roomTabsContainer.appendChild(tabButton);
+                    roomContentContainer.appendChild(roomDiv);
+                }
+            }
+
+            // 3. Hàm tạo 1 thẻ cảm biến
+            function createSensorCard(roomKey, sensorKey, sensor) {
+                const card = document.createElement('div');
+                card.className = 'sensor-card';
+                
+                // ID duy nhất: "sensor-phong_khach-nhiet_do"
+                card.id = `sensor-${roomKey}-${sensorKey}`;
+                
+                // Dùng để mở Grafana
+                card.dataset.room = roomKey;
+                card.dataset.sensorType = sensorKey;
+                card.dataset.sensorName = sensor.friendly_name;
+
+                // Thêm class đặc biệt cho đèn
+                if (sensorKey === 'den') {
+                    card.classList.add('light');
+                    card.classList.toggle('ON', sensor.value === 'ON');
+                }
+
+                card.innerHTML = `
+                    <h3>${sensor.friendly_name}</h3>
+                    <span class="value">${sensor.value}</span>
+                    <span class="unit">${sensor.unit || ''}</span>
+                    <p class="timestamp">Cập nhật: ${new Date(sensor.last_updated).toLocaleString('vi-VN')}</p>
+                `;
+                
+                // Gắn sự kiện click mở Grafana (trừ đèn)
+                if (sensorKey !== 'den') {
+                    card.addEventListener('click', () => showGrafanaModal(card.dataset));
+                }
+                
+                return card;
+            }
+            
+            // 4. Hàm chuyển Tab
+            function switchRoomTab(roomKey) {
+                // Tắt active tất cả
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.room-content').forEach(div => div.classList.remove('active'));
+                
+                // Bật active cho cái được chọn
+                document.querySelector(`.tab-button[data-room="${roomKey}"]`).classList.add('active');
+                document.getElementById(`room-${roomKey}`).classList.add('active');
+            }
+
+            // 5. Cập nhật MỘT thẻ khi có dữ liệu WebSocket
+            function updateSensorCard(sensorData) {
+                // sensorData là JSON được đẩy từ Node-RED
+                // Ví dụ: { "room": "phong_khach", "sensor_type": "nhiet_do", "value": "27", ... }
+                
+                console.log('Nhận WebSocket update:', sensorData);
+                
+                // Tìm đúng thẻ
+                const cardId = `sensor-${sensorData.room}-${sensorData.sensor_type}`;
+                const card = document.getElementById(cardId);
+                
+                if (card) {
+                    // Cập nhật giá trị
+                    card.querySelector('.value').textContent = sensorData.value;
+                    card.querySelector('.timestamp').textContent = `Cập nhật: ${new Date().toLocaleString('vi-VN')}`; // Dùng giờ hiện tại
+
+                    // Cập nhật trạng thái đèn
+                    if (sensorData.sensor_type === 'den') {
+                        card.classList.toggle('ON', sensorData.value === 'ON');
+                    }
+                }
+            }
+
+            // --- HÀM XỬ LÝ WEBSOCKET ---
+            
+            function connectWebSocket() {
+                if (sensorSocket && sensorSocket.readyState === WebSocket.OPEN) return;
+                
+                console.log('Đang kết nối WebSocket đến', WEBSOCKET_URL);
+                sensorSocket = new WebSocket(WEBSOCKET_URL);
+
+                sensorSocket.onopen = () => console.log('WebSocket kết nối thành công.');
+
+                sensorSocket.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    // Dữ liệu nhận được là 1 cảm biến
+                    // { "room": "...", "sensor_type": "...", "value": "..." }
+                    updateSensorCard(data); 
+                };
+
+                sensorSocket.onclose = () => {
+                    console.log('WebSocket bị ngắt. Đang thử kết nối lại sau 3 giây...');
+                    sensorSocket = null;
+                    setTimeout(connectWebSocket, 3000);
+                };
+                
+                sensorSocket.onerror = (err) => {
+                    console.error('Lỗi WebSocket:', err);
+                    sensorSocket.close();
+                };
+            }
+            
+            function disconnectWebSocket() {
+                if (sensorSocket) {
+                    console.log('Đang đóng WebSocket.');
+                    sensorSocket.close();
+                    sensorSocket = null;
+                }
+            }
+
+            // --- HÀM XỬ LÝ GRAFANA MODAL ---
+            
+            function showGrafanaModal(sensorData) {
+                // Dùng các biến (tags) mà chúng ta đã đẩy vào InfluxDB
+                
+                // TODO: Thay thế ID Dashboard và Panel ID của bạn
+                const grafanaBaseUrl = 'http://localhost:3000/d-solo/YOUR_DASHBOARD_ID/your-dashboard';
+                const grafanaParams = `?orgId=1&refresh=1m&var-room=${sensorData.room}&var-sensor_type=${sensorData.sensorType}&panelId=YOUR_PANEL_ID`;
+                
+                modalTitle.textContent = `Lịch sử: ${sensorData.sensorName}`;
+                modalIframe.src = grafanaBaseUrl + grafanaParams;
+                modal.style.display = 'flex';
+            }
+            
+            closeModal.onclick = function() {
+                modal.style.display = 'none';
+                modalIframe.src = '';
+            }
+
+            // --- GẮN CÁC SỰ KIỆN (EVENT LISTENERS) ---
+            
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                loginError.style.display = 'none';
+                const username = loginUsername.value;
+                const password = loginPassword.value;
+
+                try {
+                    const response = await fetch(NODE_RED_URL + '/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        localStorage.setItem('token', data.token);
+                        showView(dashboardView);
+                        initializeDashboard(); // BẮT ĐẦU DASHBOARD
+                    } else {
+                        showError(loginError, data.message || 'Đăng nhập thất bại');
+                    }
+                } catch (err) {
+                    showError(loginError, 'Không thể kết nối máy chủ Node-RED');
+                }
+            });
+
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                registerError.style.display = 'none';
+                const username = document.getElementById('registerUsername').value;
+                const password = document.getElementById('registerPassword').value;
+
+                try {
+                    const response = await fetch(NODE_RED_URL + '/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        alert('Đăng ký thành công! Vui lòng đăng nhập.');
+                        showView(loginView);
+                        registerForm.reset();
+                    } else {
+                        showError(registerError, data.message);
+                    }
+                } catch (err) {
+                    showError(registerError, 'Lỗi kết nối máy chủ');
+                }
+            });
+
+            logoutButton.addEventListener('click', () => {
+                localStorage.removeItem('token');
+                showView(loginView);
+                disconnectWebSocket(); // Ngắt WebSocket khi logout
+            });
+
+            showRegisterLink.addEventListener('click', () => showView(registerView));
+            showLoginLink.addEventListener('click', () => showView(loginView));
+
+            // --- KIỂM TRA PHIÊN ĐĂNG NHẬP KHI TẢI TRANG ---
+            
+            const token = localStorage.getItem('token');
+            if (token) {
+                console.log('Đã tìm thấy token, tự động đăng nhập.');
+                showView(dashboardView);
+                initializeDashboard(); // BẮT ĐẦU DASHBOARD
+            } else {
+                showView(loginView);
+            }
+
+        }); // Hết DOMContentLoaded
+    </script>
+</body>
+</html>

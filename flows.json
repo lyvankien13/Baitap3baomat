@@ -1,0 +1,106 @@
+[
+    {
+        "id": "70ea5bd23bf1a943",
+        "type": "tab",
+        "label": "LẤY DỮ LIỆU ",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "rooms.1",
+        "type": "http in",
+        "z": "70ea5bd23bf1a943",
+        "name": "GET /rooms-data",
+        "url": "/rooms-data",
+        "method": "get",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 360,
+        "y": 200,
+        "wires": [
+            [
+                "rooms.2"
+            ]
+        ]
+    },
+    {
+        "id": "rooms.2",
+        "type": "function",
+        "z": "70ea5bd23bf1a943",
+        "name": "Tạo Query (SELECT *)",
+        "func": "msg.topic = \"SELECT * FROM room_data\";\nmsg.payload = [];\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 580,
+        "y": 200,
+        "wires": [
+            [
+                "rooms.3"
+            ]
+        ]
+    },
+    {
+        "id": "rooms.3",
+        "type": "mysql",
+        "z": "70ea5bd23bf1a943",
+        "mydb": "YOUR_MARIADB_CONFIG_ID",
+        "name": "MariaDB",
+        "x": 780,
+        "y": 200,
+        "wires": [
+            [
+                "rooms.4"
+            ]
+        ]
+    },
+    {
+        "id": "rooms.4",
+        "type": "function",
+        "z": "70ea5bd23bf1a943",
+        "name": "Nhóm dữ liệu theo Phòng",
+        "func": "// Dữ liệu vào (msg.payload) là một MẢNG:\n// [ {room: 'phong_khach', sensor_type: 'nhiet_do', ...}, ... ]\n\nconst data = msg.payload;\nconst rooms = {}; // Tạo đối tượng rỗng\n\n// Lặp qua từng kết quả từ CSDL\nfor (const sensor of data) {\n    const roomName = sensor.room;\n    const sensorType = sensor.sensor_type;\n\n    // Nếu phòng chưa có trong đối tượng, tạo nó\n    if (!rooms[roomName]) {\n        rooms[roomName] = {};\n    }\n\n    // Thêm cảm biến vào phòng đó\n    // Gán toàn bộ đối tượng cảm biến (trừ 'room' và 'sensor_type' nếu bạn muốn)\n    rooms[roomName][sensorType] = {\n        value: sensor.value,\n        friendly_name: sensor.friendly_name,\n        unit: sensor.unit,\n        last_updated: sensor.last_updated\n    };\n}\n\n// Kết quả là đối tượng đã được nhóm:\n// { \n//   \"phong_khach\": {\n//     \"nhiet_do\": { value: '25', ... },\n//     \"do_am\": { value: '60', ... }\n//   },\n//   \"phong_bep\": { ... }\n// }\n\nmsg.payload = {\n    success: true,\n    rooms: rooms\n};\n\nmsg.statusCode = 200;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 970,
+        "y": 200,
+        "wires": [
+            [
+                "rooms.5"
+            ]
+        ]
+    },
+    {
+        "id": "rooms.5",
+        "type": "http response",
+        "z": "70ea5bd23bf1a943",
+        "name": "HTTP Response",
+        "statusCode": "",
+        "headers": {},
+        "x": 1180,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "YOUR_MARIADB_CONFIG_ID",
+        "type": "MySQLdatabase",
+        "name": "My MariaDB",
+        "host": "mariadb",
+        "port": "3306",
+        "db": "docker",
+        "tz": "",
+        "charset": "UTF8"
+    },
+    {
+        "id": "bee0a928fcdff8db",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-node-mysql": "2.0.0"
+        }
+    }
+]
